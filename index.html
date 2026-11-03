@@ -2280,7 +2280,10 @@ function renderQuick(){
   if(tg)h+=`<div class="qt">${esc(nameOf(tg))}님에게${qn>1?' <button data-q="next" style="padding:0 6px;font-size:.66rem">다른 사람</button>':''}</div><div class="qrow">${['wave','hug','comfort','churu','flower'].map(k=>qb('g:'+k,GICON[k],GIFT[k].label,{off:!S.room})).join('')}</div>`;
   if(!h)h='<div class="qt">화단이나 사람 곁에 가면 여기서 바로 할 수 있어요</div>';
   if(h!==quickSig){quickSig=h;el.innerHTML=h;el.hidden=false}
+  placeFeed();
 }
+// keep the little action notes under the quick buttons (and under the park timer) so they never cover the icons
+function placeFeed(){const f=$('#feed'),q=$('#quick');if(!f)return;let y=q&&!q.hidden?q.offsetTop+q.offsetHeight+6:46;const pt=$('#parkTimer');if(S.zone==='park'&&pt&&!pt.hidden)y+=28;f.style.top=y+'px'}
 $('#quick').addEventListener('click',e=>{
   const b=e.target.closest('[data-q]');if(!b||b.disabled)return;const q=b.dataset.q,[t,k]=q.split(':');
   if(q==='snow'){S.roll?snowPlace():snowStart();quickSig='';renderQuick();return}
