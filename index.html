@@ -104,6 +104,15 @@ header.top .row{flex-wrap:nowrap}
 .chat #chatNote{font-size:.76rem}
 .quick{position:absolute;top:8px;left:8px;z-index:3;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;max-width:calc(100% - 16px);overflow-x:auto;padding:4px 6px;background:rgb(244 240 231 / .3);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);scrollbar-width:none}
 .quick::-webkit-scrollbar{display:none}
+@media (max-width:560px){
+  .quick{flex-wrap:wrap;row-gap:4px;overflow:visible;max-width:calc(100% - 16px)}
+  .quick button:not(.hot) span{display:none}
+  .quick button{padding:3px 5px}
+  .quick .qt{flex-basis:auto}
+  .chat{width:calc(100% - 96px)}
+  .entry h2{font-size:1.2rem}
+}
+@media (max-height:480px){.stage{min-height:220px}.zoom{grid-template-columns:32px 32px;gap:4px}.zoom .btn{padding:2px}}
 
 .feed{position:absolute;left:8px;top:46px;z-index:3;list-style:none;margin:0;padding:0;display:grid;gap:4px;max-width:calc(50% - 14px);pointer-events:none}
 .feed li{font-size:.7rem;line-height:1.35;padding:0 2px;border:0;background:none;color:var(--ink);text-shadow:0 0 3px #f4f0e7,0 0 3px #f4f0e7,0 0 6px #f4f0e7;transition:opacity .6s}
@@ -392,8 +401,12 @@ function petList(){
       photos:Array.isArray(p.photos)?p.photos.filter(x=>x&&/^[A-Za-z0-9_-]{4,80}$/.test(x.id||'')).slice(0,200).map(x=>({id:x.id,cap:str(x.cap,80),at:Number(x.at)||0})):[]})}};
   if(S.ex)add('ex',S.ex.pets,true);
   for(const [uid,d] of Object.entries(allDocs()))add(uid,d&&d.pets,false);
-  return out.sort((a,b)=>a.createdAt-b.createdAt||(a.key<b.key?-1:1));
+  const hid=modList('hid');
+  return out.filter(p=>!hid.includes(p.key)||p.owner===S.myId||S.isOwner).map(p=>hid.includes(p.key)?Object.assign(p,{hidden:true}):p).sort((a,b)=>a.createdAt-b.createdAt||(a.key<b.key?-1:1));
 }
+function modList(k){const v=S.ban&&S.ban[k];return Array.isArray(v)?v:[]}
+function blockOf(id){if(!id)return null;const b=modList('blk').find(x=>x&&x.id===id);return b&&(!b.until||b.until>Date.now())?b:null}
+async function saveMod(fn){if(!S.db||!S.isOwner)return false;const cur=Object.assign({},S.ban||{});fn(cur);cur.at=Date.now();try{await S.db.doc('examples/banned').set(cur);return true}catch(_){toast('저장하지 못했어요');return false}}
 function totals(key){
   const t={fly:0,water:0,visits:0,weeded:0,flowers:{국화:0,해바라기:0,들꽃:0},seeds:[]};
   const add=(by,tr)=>{const x=tr&&typeof tr==='object'?tr[key]:null;if(!x||typeof x!=='object')return;t.fly+=num(x.fly);t.water+=num(x.water);t.visits+=num(x.visits);{const wd=Number(x.weededAt);if(Number.isFinite(wd)&&wd<=Date.now()+6e4)t.weeded=Math.max(t.weeded||0,wd)}
@@ -1404,11 +1417,13 @@ function leavePark(){
     renderPanel();renderPresence();
   });
 }
-setInterval(()=>{const pt=document.getElementById('parkTimer');if(S.zone!=='park'){if(pt)pt.hidden=true;return}renderParkActs();const left=(S.visitEnd||0)-Date.now();if(pt){const sec=Math.max(0,Math.ceil(left/1000));pt.textContent=`남은 시간 ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;pt.classList.toggle('low',sec<=30);pt.hidden=!S.entered}const el=document.getElementById('visitTime');if(el)el.textContent=fmtLeft(left);if(left<=0)startLeave()},1000);
+setInterval(()=>{const pt=document.getElementById('parkTimer');if(S.zone!=='park'){if(pt)pt.hidden=true;return}renderParkActs();const left=(S.visitEnd||0)-Date.now();{const q=$('#quick'),y=q&&!q.hidden?q.offsetTop+q.offsetHeight+6:54;if(pt)pt.style.top=y+'px';const pi=$('#parkIntro');if(pi)pi.style.top=(y+30)+'px';const tc=$('#talkCard');if(tc)tc.style.top=(y+30)+'px'}
+  if(pt){const sec=Math.max(0,Math.ceil(left/1000));pt.textContent=`남은 시간 ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;pt.classList.toggle('low',sec<=30);pt.hidden=!S.entered}const el=document.getElementById('visitTime');if(el)el.textContent=fmtLeft(left);if(left<=0)startLeave()},1000);
 function fmtLeft(ms){ms=Math.max(0,ms);const s=Math.ceil(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
 
 /* ---------- people & movement ---------- */
-function presentPeople(){
+function presentPeople(){return presentPeople_().filter(q=>q.peer==='me'||!blockOf(q.by))}
+function presentPeople_(){
   const list=[];
   if(S.entered)list.push({peer:'me',by:S.myId,at:S.at,x:S.pos.x,z:S.pos.z,f:S.face,say:S.say,sayAt:S.sayAt,zone:S.zone,lie:!!S.napping});
   for(const p of S.peers){if(p.sameTab||p.kind!=='viewer')continue;const pr=p.presence||{};if(pr.in!==true)continue;
@@ -1439,6 +1454,10 @@ function walkTo(x,z){S.afterArrive=null;if(S.crossing){S.pending={x,z};return}S.
 function kickedUntil(){if(S.isOwner){clearKick();return 0}const a=Number(lsGet('gb-kick'))||0,b=Number(S.mine&&S.mine.kicked)||0;return Math.max(a,b)}
 // the keeper of 고양이별 is never sent out; any old test kick is wiped
 function clearKick(){if(lsGet('gb-kick'))lsSet('gb-kick','');if(S.mine&&S.mine.kicked&&S.canWrite&&S.loaded){delete S.mine.kicked;save()}}
+function showBlocked(){const b=blockOf(S.myId);const card=$('#entry .card');$('#entry').hidden=false;
+  card.innerHTML=`<span class="eyebrow">고양이별 안내</span><h2>지금은 고양이별에 들어올 수 없어요</h2><p>운영 정책에 따라 이용이 제한됐어요.</p>
+    <p class="muted">${b&&b.until?`${new Date(b.until).toLocaleDateString('ko-KR')}까지 제한돼요.`:'제한 기간이 정해지지 않았어요.'}</p>`}
+setInterval(()=>{if(S.entered&&!S.isOwner&&blockOf(S.myId)){leaveStar();showBlocked()}},3000);
 function showKicked(){const u=kickedUntil();const d=new Date(u);
   const card=$('#entry .card');$('#entry').hidden=false;
   card.innerHTML=`<span class="eyebrow">고양이별 안내</span><h2>고양이별에서 잠시 나가게 됐어요</h2>
@@ -1452,7 +1471,7 @@ function kickOut(){
   showKicked();renderPresence();renderPanel();
 }
 function enter(){
-  if(S.entered)return;if(kickedUntil()>Date.now()){showKicked();return}Snd.start();S.enteredAt=Date.now();S.callShown=false;S.nextCallAt=0;S.entered=true;$('#hint').hidden=true;if(!S.nick)setNick($('#nickIn').value);$('#meBtn').hidden=false;$('#meBtn').textContent=S.nick;$('#entry').hidden=true;$('#talkIn').disabled=false;$('#talkBtn').disabled=false;
+  if(S.entered)return;if(blockOf(S.myId)&&!S.isOwner){showBlocked();return}if(kickedUntil()>Date.now()){showKicked();return}Snd.start();S.enteredAt=Date.now();S.callShown=false;S.nextCallAt=0;S.entered=true;$('#hint').hidden=true;if(!S.nick)setNick($('#nickIn').value);$('#meBtn').hidden=false;$('#meBtn').textContent=S.nick;$('#entry').hidden=true;$('#talkIn').disabled=false;$('#talkBtn').disabled=false;
   S.pos={x:(Math.random()-.5)*1.2,z:BR_A+1};S.face=Math.PI;
   if(reduce||!W3.ok){S.pos={x:0,z:BR_B-2};toast('고양이별에 도착했어요')}
   else{S.crossing=true;S.target={x:S.pos.x*.5,z:BR_B-2.5};$('#hint').textContent='무지개다리를 건너는 중…'}
@@ -1580,6 +1599,46 @@ function showParkIntro(key){const p=petList().find(x=>x.key===key);const el=$('#
     if(S.zone!=='park'||(Date.now()-t0>3000&&near)||Date.now()-t0>10000){clearInterval(introT);el.classList.add('out');setTimeout(()=>{el.hidden=true},650)}},300)}
 function showParkNote(text){const el=$('#parkIntro');if(!el)return;clearInterval(introT);el.textContent=text;el.classList.remove('out');el.hidden=false;
   introT=setTimeout(()=>{el.classList.add('out');setTimeout(()=>{el.hidden=true},650)},4000)}
+/* ---------- reports ---------- */
+const REASONS=['욕설·비하','고양이 비하','스팸·광고','부적절한 사진','기타'];
+function reportForm(kind,target,label){
+  return `<details class="fold" data-fold="report"><summary>신고하기</summary>
+    <form class="reportForm" data-kind="${kind}" data-target="${esc(target)}" data-label="${esc(label)}">
+      <div class="chips">${REASONS.map((r,i)=>`<label class="chip" style="cursor:pointer"><input type="radio" name="rr" value="${r}" ${i?'':'checked'} style="margin-right:4px">${r}</label>`).join('')}</div>
+      <input type="text" name="rt" id="reportText" maxlength="120" placeholder="자세한 내용 (선택)">
+      <div><button class="btn">신고 보내기</button></div>
+      <p class="muted" style="font-size:.76rem">신고는 고양이별 주인에게만 보여요.</p>
+    </form></details>`}
+function wireReports(pn){pn.querySelectorAll('.reportForm').forEach(f=>f.onsubmit=async e=>{e.preventDefault();
+  if(!S.db||!S.myId){toast('지금은 신고를 보낼 수 없어요');return}
+  const r={at:Date.now(),kind:f.dataset.kind,target:f.dataset.target,label:f.dataset.label,reason:(f.querySelector('input[name=rr]:checked')||{}).value||'기타',text:clean(f.querySelector('input[name=rt]').value.trim().slice(0,120)),from:S.nick||''};
+  try{const ref=S.db.doc('reports/'+S.myId);const cur=await ref.get().catch(()=>null);const list=cur&&cur.exists&&Array.isArray(cur.data().r)?cur.data().r:[];
+    await ref.set({r:list.concat(r).slice(-30)});toast('신고를 보냈어요. 고마워요');f.closest('details').open=false;f.reset()}catch(_){toast('신고를 보내지 못했어요')}})}
+/* ---------- the keeper's report list and block list ---------- */
+let reportsUnsub=null;
+function watchReports(){if(reportsUnsub||!S.isOwner||!S.db)return;try{reportsUnsub=S.db.collection('reports').onSnapshot(q=>{S.reports=[];q.docs.forEach(d=>{const v=d.data();(Array.isArray(v&&v.r)?v.r:[]).forEach(r=>{if(r&&r.at)S.reports.push(Object.assign({},r,{by:d.id,rid:d.id+':'+r.at}))})});S.reports.sort((a,b)=>b.at-a.at);if(S.view==='me')renderPanel()},()=>{})}catch(_){}}
+function modSection(){
+  const done=modList('done'),open=(S.reports||[]).filter(r=>!done.includes(r.rid)),blk=modList('blk').filter(b=>!b.until||b.until>Date.now()),hid=modList('hid');
+  const pets=petList();const nameOfTarget=r=>r.kind==='pet'?((pets.find(p=>p.key===r.target)||{}).name||r.label):r.label;
+  return `<div class="note" style="margin-top:14px"><b>신고 ${open.length}건</b> · 고양이별 주인에게만 보여요
+    ${open.length?open.slice(0,20).map(r=>`<div class="rep" style="border-top:1px dashed var(--line);padding:8px 0;font-size:.8rem">
+      <div><b>${r.kind==='pet'?'화단':'사람'}</b> ${esc(nameOfTarget(r)||'')} · ${esc(r.reason)} <span class="muted">${new Date(r.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+      ${r.text?`<div class="muted">“${esc(r.text)}”</div>`:''}
+      <div class="row" style="gap:4px;margin-top:4px">
+        ${r.kind==='pet'?`<button class="chip" data-hide="${esc(r.target)}">${hid.includes(r.target)?'숨김 풀기':'화단 숨기기'}</button>`:''}
+        ${r.kind==='person'?`<button class="chip" data-blk="${esc(r.target)}" data-nm="${esc(r.label)}" data-d="7">7일 차단</button><button class="chip" data-blk="${esc(r.target)}" data-nm="${esc(r.label)}" data-d="30">30일</button><button class="chip" data-blk="${esc(r.target)}" data-nm="${esc(r.label)}" data-d="0">계속 차단</button>`:''}
+        <button class="chip" data-done="${esc(r.rid)}">처리 완료</button></div></div>`).join(''):'<p class="muted" style="margin-top:4px">새 신고가 없어요.</p>'}
+    <div style="margin-top:10px"><b>차단 목록 ${blk.length}명</b>${blk.length?blk.map(b=>`<div class="row" style="justify-content:space-between;font-size:.8rem;margin-top:4px"><span>${esc(b.nick||'방문자')} <span class="muted">${b.until?new Date(b.until).toLocaleDateString('ko-KR')+'까지':'계속'}</span></span><button class="chip" data-unblk="${esc(b.id)}">해제</button></div>`).join(''):'<p class="muted">차단한 사람이 없어요.</p>'}</div>
+    ${hid.length?`<div style="margin-top:10px"><b>숨긴 화단 ${hid.length}곳</b>${hid.map(k=>`<div class="row" style="justify-content:space-between;font-size:.8rem;margin-top:4px"><span>${esc((pets.find(p=>p.key===k)||{}).name||k)}</span><button class="chip" data-hide="${esc(k)}">숨김 풀기</button></div>`).join('')}</div>`:''}
+  </div>`}
+function wireMod(pn){
+  pn.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>saveMod(c=>{c.done=(Array.isArray(c.done)?c.done:[]).concat(b.dataset.done).slice(-500)}).then(()=>renderPanel()));
+  pn.querySelectorAll('[data-hide]').forEach(b=>b.onclick=()=>saveMod(c=>{const h=Array.isArray(c.hid)?c.hid.slice():[];const i=h.indexOf(b.dataset.hide);i>=0?h.splice(i,1):h.push(b.dataset.hide);c.hid=h}).then(ok=>{if(ok){toast('바꿨어요');renderPanel()}}));
+  pn.querySelectorAll('[data-blk]').forEach(b=>b.onclick=()=>blockPerson(b.dataset.blk,b.dataset.nm,Number(b.dataset.d)));
+  pn.querySelectorAll('[data-unblk]').forEach(b=>b.onclick=()=>saveMod(c=>{c.blk=(Array.isArray(c.blk)?c.blk:[]).filter(x=>x&&x.id!==b.dataset.unblk)}).then(ok=>{if(ok){toast('차단을 풀었어요');renderPanel()}}));
+}
+function blockPerson(id,nick,days){if(!id||id===S.myId){toast('이 사람은 차단할 수 없어요');return}
+  saveMod(c=>{const l=(Array.isArray(c.blk)?c.blk:[]).filter(x=>x&&x.id!==id);l.push({id,nick:str(nick,12),until:days?Date.now()+days*864e5:0,at:Date.now()});c.blk=l.slice(-500)}).then(ok=>{if(ok){toast(days?`${days}일 동안 차단했어요`:'계속 차단했어요');renderPanel()}})}
 /* ---------- napping together in the park ---------- */
 function wakeUp(){S.napping=false} // the cat notices on its own and gets up with a stretch
 /* ---------- going back to Earth over the bridge ---------- */
@@ -1695,7 +1754,7 @@ function holdChat(on){chatHold=on;if(on){clearTimeout(chatHide);$('#chatBox').cl
  log.addEventListener('scroll',()=>showChat());b.addEventListener('touchstart',()=>showChat(),{passive:true})}
 function renderChat(localOnly){
   const box=$('#chatLog');const msgs=[];
-  for(const [uid,d] of Object.entries(S.chat||{})){if(!d||!Array.isArray(d.m))continue;d.m.slice(-40).forEach(x=>{if(x&&typeof x.t==='string'&&Number(x.at)&&!x.k)msgs.push({by:uid,t:clean(x.t.slice(0,120)),at:Number(x.at),z:x.z==='park'?'park':'star',k:GIFT[x.k]?x.k:null,to:typeof x.to==='string'?x.to:null,tn:str(x.tn,12)})})}
+  for(const [uid,d] of Object.entries(S.chat||{})){if(!d||!Array.isArray(d.m))continue;d.m.slice(-40).forEach(x=>{if(x&&typeof x.t==='string'&&Number(x.at)&&!x.k)if(blockOf(uid))return;msgs.push({by:uid,t:clean(x.t.slice(0,120)),at:Number(x.at),z:x.z==='park'?'park':'star',k:GIFT[x.k]?x.k:null,to:typeof x.to==='string'?x.to:null,tn:str(x.tn,12)})})}
   if(localOnly)(S.localChat=S.localChat||[]).push({by:S.myId||'me',t:localOnly,at:Date.now(),z:S.zone});
   (S.localChat||[]).forEach(x=>msgs.push(x));
   msgs.sort((a,b)=>a.at-b.at);const last=msgs.slice(-80);
@@ -1767,9 +1826,13 @@ function renderPanel(){
      <div class="list" id="seedList">${t.seeds.length?t.seeds.slice(0,40).map(x=>`<div class="seed"><b data-by="${esc(x.by||'')}">${esc(seedName(x.by))}</b>${esc(clean(x.t))}</div>`).join(''):'<p class="muted">첫 씨앗을 심어 주세요.</p>'}</div>
      ${S.canWrite?`<form id="seedForm" class="row"><label class="sr" for="seedIn">한 줄 위로</label><input id="seedIn" type="text" maxlength="60" placeholder="한 줄 남기기"><button class="btn">심기</button></form>`:''}
    </details>
+   ${S.isOwner&&!p.isEx&&!mineP&&S.db?`<div class="note"><b>화단 관리</b> · 고양이별 주인에게만 보여요<div class="row" style="gap:4px;margin-top:6px"><button class="chip" data-hide="${esc(p.key)}">${p.hidden?'숨김 풀기':'화단 숨기기'}</button>${S.confirmAdminDel===p.key?`<button class="chip" id="adminDelYes" style="background:#8a2c1f;color:#fff">정말 지우기</button><button class="chip" id="adminDelNo">그만두기</button>`:`<button class="chip" id="adminDel">화단 지우기</button>`}</div></div>`:''}
    ${mineP&&S.canWrite?`<div class="note">${S.confirmDel?`<p style="margin-bottom:8px">${esc(p.name)}의 화단과 편지를 지울까요? 되돌릴 수 없어요.</p><div class="row"><button class="btn" id="delYes">지우기</button><button class="btn" id="delNo">그대로 두기</button></div>`:`<button class="chip" id="delPet">이 화단 정리하기</button>`}</div>`:''}
+   ${p.hidden?'<p class="note">이 화단은 신고로 숨겨져 있어요. 보호자와 고양이별 주인에게만 보여요.</p>':''}
+   ${!p.isEx&&p.owner!==S.myId?reportForm('pet',p.key,p.name):''}
    ${!S.canWrite&&S.loaded?'<p class="note">지금은 둘러보기만 할 수 있어요. 반딧불과 씨앗은 고양이별 참여 권한이 있는 분만 남길 수 있어요.</p>':''}`;
   pn.querySelector('#toPlaza').onclick=()=>goTo('plaza');
+  wireReports(pn);
   {const st=pn.querySelector('.story');if(st){if(S.storyOpen===p.key)st.classList.add('open');st.onclick=()=>{st.classList.toggle('open');S.storyOpen=st.classList.contains('open')?p.key:null}}}
   pn.querySelectorAll('details[data-fold]').forEach(d=>d.addEventListener('toggle',()=>{(S.fold=S.fold||{})[d.dataset.fold]=d.open}))
   const te=pn.querySelector('#tagEdit');if(te)te.onclick=()=>{S.editTag=p.key;renderPanel();setTimeout(()=>{const i=document.getElementById('tagIn');i&&i.focus()})};
@@ -1788,6 +1851,8 @@ function renderPanel(){
   const sf=pn.querySelector('#seedForm');if(sf)sf.onsubmit=e=>{e.preventDefault();const v=pn.querySelector('#seedIn').value.trim();if(!v)return;const tr=tribOf(p.key);tr.seeds.unshift({t:v.slice(0,60),at:Date.now()});tr.seeds=tr.seeds.slice(0,30);save();pn.querySelector('#seedIn').value='';refreshAll();toast('씨앗을 심었어요')};
   const dp=pn.querySelector('#delPet');if(dp)dp.onclick=()=>{S.confirmDel=true;renderPanel()};
   const dn=pn.querySelector('#delNo');if(dn)dn.onclick=()=>{S.confirmDel=false;renderPanel()};
+  if(S.isOwner){wireMod(pn);const ad=pn.querySelector('#adminDel');if(ad)ad.onclick=()=>{S.confirmAdminDel=p.key;renderPanel()};const an=pn.querySelector('#adminDelNo');if(an)an.onclick=()=>{S.confirmAdminDel=null;renderPanel()};
+    const ay=pn.querySelector('#adminDelYes');if(ay)ay.onclick=async()=>{S.confirmAdminDel=null;try{const ref=S.db.doc('people/'+p.owner);const cur=await ref.get();if(!cur.exists)throw 0;const d=cur.data();if(d.pets)delete d.pets[p.id];if(d.trib)delete d.trib[p.key];await ref.set(d);toast(`${p.name}의 화단을 지웠어요`);goTo('plaza')}catch(_){toast('화단을 지우지 못했어요')}}}
   const dy=pn.querySelector('#delYes');if(dy)dy.onclick=()=>{delete ensureMine().pets[p.id];delete S.mine.trib[p.key];save();toast(`${p.name}의 화단을 정리했어요`);goTo('plaza');refreshAll()};
   renderPresence();
   const ids=t.seeds.map(x=>x.by).filter(Boolean);if(ids.length)refreshNames([...new Set(ids)]).then(()=>{pn.querySelectorAll('#seedList b[data-by]').forEach(b=>{if(b.dataset.by)b.textContent=seedName(b.dataset.by)})});
@@ -1852,8 +1917,10 @@ function renderPerson(pn){
    <p class="muted" id="personWhere">${q?esc(whereOf(q)):'고양이별을 떠났어요'}</p>
    <div class="acts">${Object.keys(GIFT).map(k=>`<button class="act" data-g="${k}" ${q&&S.entered&&live?'':'disabled'}>${GICON[k]}<span>${GIFT[k].label}</span></button>`).join('')}</div>
    <button class="btn" id="pGo" ${q&&S.entered?'':'disabled'}>곁으로 걸어가기</button>
-   <p class="note">${!S.entered?'무지개다리를 건너면 마음을 전할 수 있어요.':!live?'지금은 다른 방문자와 연결되지 않아 전할 수 없어요.':q&&q.zone!==S.zone?'다른 곳에 있어요. 같은 곳에 있어야 마음을 전할 수 있어요.':'멀리 있어도 바로 전해져요. 츄르와 꽃은 던져서, 위로는 멀리서 토닥여요. 받은 츄르와 꽃은 그 사람의 이름 패널에 남아요.'}</p>`;
+   <p class="note">${!S.entered?'무지개다리를 건너면 마음을 전할 수 있어요.':!live?'지금은 다른 방문자와 연결되지 않아 전할 수 없어요.':q&&q.zone!==S.zone?'다른 곳에 있어요. 같은 곳에 있어야 마음을 전할 수 있어요.':'멀리 있어도 바로 전해져요. 츄르와 꽃은 던져서, 위로는 멀리서 토닥여요. 받은 츄르와 꽃은 그 사람의 이름 패널에 남아요.'}</p>   ${q&&q.by&&q.by!==S.myId?reportForm('person',q.by,nameOf(q)):''}
+   ${S.isOwner&&q&&q.by&&q.by!==S.myId?`<div class="note"><b>차단</b> · 고양이별 주인에게만 보여요<div class="row" style="gap:4px;margin-top:6px"><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="7">7일</button><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="30">30일</button><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="0">계속 차단</button></div></div>`:''}`;
   pn.querySelector('#pBack').onclick=()=>{S.view='pet';renderPanel()};
+  wireReports(pn);pn.querySelectorAll('[data-blk]').forEach(b=>b.onclick=()=>blockPerson(b.dataset.blk,b.dataset.nm,Number(b.dataset.d)));
   pn.querySelector('#pGo').onclick=()=>approachPerson(S.personPeer,null);
   pn.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>approachPerson(S.personPeer,b.dataset.g));
 }
@@ -1940,6 +2007,7 @@ function renderMe(pn){
    <form id="meForm"><label class="sr" for="meIn">이름</label><div class="row"><input id="meIn" type="text" maxlength="12" value="${esc(S.nick||'')}"><button type="button" class="btn" id="meDice">다른 이름</button></div>
      <div><button class="btn primary">저장하기</button></div></form>
    ${S.isOwner?`<div class="note" style="margin-top:14px"><b>고양이가 부르는 장면</b> · 고양이별 주인에게만 보여요<p class="muted" style="margin:4px 0 6px">30분 넘게 머물면 내 고양이가 만나자고 불러요. 지금 바로 미리 볼 수 있어요.</p><button class="btn" id="callPreview" type="button">미리 보기</button></div>`:''}
+   ${S.isOwner&&S.db?modSection():''}
    ${S.isOwner&&S.db?`<form id="banForm" class="note" style="margin-top:14px"><label for="banIn"><b>채팅 금지어</b> · 고양이별 주인에게만 보여요</label>
      <p class="muted" style="margin:4px 0 6px">쉼표나 줄바꿈으로 나눠 적어 주세요. 대화, 말풍선, 이름, 씨앗에서 ●●로 가려져요. 흔한 욕설은 기본으로 가려지고, 띄어쓰기나 숫자를 끼워 넣어도 걸러져요.</p>
      <textarea id="banIn" rows="3" maxlength="4000" style="width:100%">${esc((S.ban&&Array.isArray(S.ban.w)?S.ban.w:[]).join(', '))}</textarea>
@@ -1950,6 +2018,7 @@ function renderMe(pn){
   const bf=pn.querySelector('#banForm');if(bf)bf.onsubmit=e=>{e.preventDefault();const w=[...new Set(pn.querySelector('#banIn').value.split(/[,\n]/).map(x=>x.trim()).filter(x=>x&&x.length<=20))].slice(0,300);
     const c=[...new Set(pn.querySelector('#catBanIn').value.split(/[,\n]/).map(x=>x.trim()).filter(x=>x&&x.length<=20))].slice(0,300);
     S.db.doc('examples/banned').set({w,c,at:Date.now()}).then(()=>toast('금지어를 저장했어요')).catch(()=>toast('금지어를 저장하지 못했어요'))};
+  if(S.isOwner){watchReports();wireMod(pn)}
   {const cp=pn.querySelector('#callPreview');if(cp)cp.onclick=()=>{S.view='pet';renderPanel();showCatCall(myCallCat(true))}}
   pn.querySelector('#meBack').onclick=()=>{S.view='pet';renderPanel()};
   pn.querySelector('#meDice').onclick=()=>{pn.querySelector('#meIn').value=randomNick()};
@@ -2164,7 +2233,7 @@ function refreshAll(){
   if(S.view==='make'||S.view==='edit'||S.view==='me')return;
   if(S.view==='find'){renderFindList();return}
   if(S.view==='person'){renderPresence();return}
-  const keep={};['seedIn','letterIn','tagIn'].forEach(id=>{const el=document.getElementById(id);if(el)keep[id]=el.value});
+  const keep={};['seedIn','letterIn','tagIn','reportText'].forEach(id=>{const el=document.getElementById(id);if(el)keep[id]=el.value});
   const focus=document.activeElement&&document.activeElement.id;
   renderPanel();
   for(const [id,v] of Object.entries(keep)){const el=document.getElementById(id);if(el)el.value=v}
@@ -2184,7 +2253,7 @@ function quickTarget(){
   return L[0];
 }
 const SNOW_ICON='<svg viewBox="0 0 28 28"><circle cx="14" cy="18" r="6" fill="#fff" stroke="var(--ink)" stroke-width="1.5"/><circle cx="14" cy="8.5" r="4" fill="#fff" stroke="var(--ink)" stroke-width="1.5"/><circle cx="12.6" cy="8" r=".7" fill="var(--ink)"/><circle cx="15.4" cy="8" r=".7" fill="var(--ink)"/><path d="M14 9.4l3 .8-3 .5z" fill="#f08a3c"/></svg>';
-function qb(id,icon,label,opt){opt=opt||{};return `<button data-q="${id}"${opt.off?' disabled':''}${opt.hot?' class="hot"':''}>${icon}<span>${esc(label)}</span></button>`}
+function qb(id,icon,label,opt){opt=opt||{};return `<button data-q="${id}" title="${esc(label)}" aria-label="${esc(label)}"${opt.off?' disabled':''}${opt.hot?' class="hot"':''}>${icon}<span>${esc(label)}</span></button>`}
 function renderQuick(){
   const el=$('#quick');if(!S.entered||S.crossing){if(!el.hidden){el.hidden=true;quickSig=''}return}
   let h='';
