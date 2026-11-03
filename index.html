@@ -1957,7 +1957,7 @@ function handleGift(msg){
    const seen=L.some(q=>q.peer===toKey)||toKey==='me';if(seen||fromKey==='me')feed(`<b>${esc(fromN(fromKey))}</b> → <b>${esc(nm(toKey))}</b> ${verb}`)}
   if(toKey!=='me'||msg.sameTab)return;
   const from=cleanNick(d.n)||nickOf(msg.by)||'방문자';
-  if(k==='hug'){const L=presentPeople(),f=L.find(q=>q.peer===fromKey);if(f&&Math.hypot(f.x-S.pos.x,f.z-S.pos.z)<1.9){S.face=Math.atan2(f.x-S.pos.x,f.z-S.pos.z);S.hugUntil=Date.now()+2800;toast(`${from}님이 꼭 안아 줬어요`)}return}
+  if(k==='hug'){toast(`${from}님이 꼭 안아 줬어요`);return} // only the one who hugs reaches out
   if(k==='wave')return;
   if(k==='flower')S.holdUntil=Date.now()+15000;
   if(k==='churu')S.giftChuru=(S.giftChuru||0)+1;
