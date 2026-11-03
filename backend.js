@@ -10,6 +10,7 @@
   "use strict";
   window.GOBYEOL_STANDALONE = true;
   const cfg = window.GOBYEOL_CONFIG || {};
+  if (!window.supabase && cfg.supabaseUrl && !/YOUR-/.test(cfg.supabaseUrl + cfg.supabaseAnonKey)) console.error("[고양이별] Supabase 라이브러리를 불러오지 못했어요 (인터넷 연결 또는 차단 확인)");
   if (!window.supabase || !cfg.supabaseUrl || /YOUR-/.test(cfg.supabaseUrl + cfg.supabaseAnonKey)) {
     console.warn("[고양이별] config.js에 Supabase 주소와 키가 없어서 체험 모드로 열었어요. 기록은 이 브라우저에만 저장돼요.");
     demoMode();
@@ -242,6 +243,21 @@
     };
   }
 
+  // when the connection fails, say so on screen (with the reason) instead of failing quietly
+  let connErrShown = false;
+  function showConnError(e) {
+    if (connErrShown) return; connErrShown = true;
+    const msg = String((e && (e.message || e.msg || e.error_description || e.code)) || e || "알 수 없는 오류").slice(0, 160);
+    const hint = /anonymous/i.test(msg) ? "Supabase → Authentication → Sign In / Providers에서 Allow anonymous sign-ins를 켜 주세요."
+      : /api key|apikey|jwt|invalid|unauthorized|401/i.test(msg) ? "config.js의 키를 확인해 주세요. (Legacy API Keys 탭의 anon 키를 추천해요)"
+      : "잠시 뒤 새로고침해 보세요.";
+    const show = () => { const b = document.createElement("div");
+      b.textContent = "Supabase 연결 실패: " + msg + " — " + hint;
+      b.style.cssText = "position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 66px);transform:translateX(-50%);z-index:60;font:12px/1.5 system-ui,sans-serif;background:#8a2c1f;color:#fff;padding:6px 12px;border-radius:10px;max-width:calc(100vw - 32px);text-align:center;user-select:all";
+      document.body.appendChild(b); };
+    document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", show) : show();
+  }
+  ready.catch(showConnError);
   const roomReady = openRoom().catch((e) => { console.error("[고양이별] 실시간 연결 실패", e); return null; });
   window.claude = {
     use: async (name) => {
@@ -254,6 +270,7 @@
         return null; // sample: letters go through catLetterFn instead
       } catch (e) {
         console.error("[고양이별] 로그인 실패 — Supabase에서 익명 로그인을 켰는지 확인해 주세요.", e);
+        showConnError(e);
         return null;
       }
     }
