@@ -34,25 +34,6 @@ grant select on public.docs to anon, authenticated;
 grant insert, update, delete on public.docs to authenticated;
 grant select on public.admins to authenticated;
 
-drop policy if exists "read all" on public.docs;
-create policy "read all" on public.docs for select using (true);
-
-drop policy if exists "write own" on public.docs;
-create policy "write own" on public.docs for insert to authenticated
-  with check (
-    (col in ('people','chat') and id = auth.uid()::text and owner = auth.uid())
-    or public.is_admin()
-  );
-
-drop policy if exists "update own" on public.docs;
-create policy "update own" on public.docs for update to authenticated
-  using ((col in ('people','chat') and id = auth.uid()::text) or public.is_admin())
-  with check ((col in ('people','chat') and id = auth.uid()::text and owner = auth.uid()) or public.is_admin());
-
-drop policy if exists "delete own" on public.docs;
-create policy "delete own" on public.docs for delete to authenticated
-  using ((col in ('people','chat') and id = auth.uid()::text) or public.is_admin());
-
 drop policy if exists "admins read self" on public.admins;
 create policy "admins read self" on public.admins for select to authenticated using (user_id = auth.uid());
 
@@ -69,8 +50,47 @@ on conflict (id) do update set public = true, file_size_limit = 10485760, allowe
 drop policy if exists "photos read" on storage.objects;
 create policy "photos read" on storage.objects for select using (bucket_id = 'photos');
 
+-- 5-2) 신고 · 차단
+
+-- 차단된 사람인지 확인 (관리자가 사이트에서 만든 차단 목록을 읽어요)
+create or replace function public.is_blocked() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.docs d, jsonb_array_elements(coalesce(d.data->'blk','[]'::jsonb)) b
+    where d.col = 'examples' and d.id = 'banned'
+      and b->>'id' = auth.uid()::text
+      and (coalesce((b->>'until')::bigint, 0) = 0 or (b->>'until')::bigint > (extract(epoch from now()) * 1000)::bigint)
+  );
+$$;
+grant execute on function public.is_blocked() to anon, authenticated;
+
+-- 읽기: 신고는 보낸 사람과 관리자만, 나머지는 누구나
+drop policy if exists "read all" on public.docs;
+create policy "read all" on public.docs for select
+  using (col <> 'reports' or id = auth.uid()::text or public.is_admin());
+
+-- 쓰기: 각자 자기 기록만 (차단된 사람은 못 씀). 관리자는 화단·대화·설정을 정리할 수 있어요
+drop policy if exists "write own" on public.docs;
+create policy "write own" on public.docs for insert to authenticated
+  with check (
+    (col in ('people','chat','reports') and id = auth.uid()::text and owner = auth.uid() and not public.is_blocked())
+    or public.is_admin()
+  );
+
+drop policy if exists "update own" on public.docs;
+create policy "update own" on public.docs for update to authenticated
+  using ((col in ('people','chat','reports') and id = auth.uid()::text) or public.is_admin())
+  with check ((col in ('people','chat','reports') and id = auth.uid()::text and owner = auth.uid() and not public.is_blocked())
+              or public.is_admin());
+
+drop policy if exists "delete own" on public.docs;
+create policy "delete own" on public.docs for delete to authenticated
+  using ((col in ('people','chat') and id = auth.uid()::text) or public.is_admin());
+
+-- 사진: 차단된 사람은 못 올리고, 올린 사람과 관리자가 지울 수 있어요
 drop policy if exists "photos upload" on storage.objects;
-create policy "photos upload" on storage.objects for insert to authenticated with check (bucket_id = 'photos');
+create policy "photos upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'photos' and not public.is_blocked());
 
 drop policy if exists "photos delete own" on storage.objects;
 create policy "photos delete own" on storage.objects for delete to authenticated

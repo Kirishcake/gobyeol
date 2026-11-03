@@ -1013,7 +1013,7 @@ for(const c of parkCats.values()){ambBrain(c,now,dt);c.g.position.set(c.x,0,c.z)
     if(S.room&&S.entered&&now-lastSent>150){const w=S.walk,r2=v=>+(+v).toFixed(2);
       const patch={park:S.zone==='park'?S.parkKey:null,ps:S.zone==='park'?S.parkSince:null,hold:S.holdUntil>Date.now()?'flower':null,holdUntil:S.holdUntil>Date.now()?S.holdUntil:null,nick:S.nick||null,x:r2(S.pos.x),z:r2(S.pos.z),f:r2(S.face),zone:S.zone,churu:S.zone==='park'&&!!S.churu,wand:S.zone==='park'&&S.wandUntil>Date.now(),cat:w?S.parkKey:null,cx:w?r2(w.x):null,cz:w?r2(w.z):null,cf:w?r2(w.f):null,csc:w?r2(w.scale):null,csay:w&&w.say?w.say:null,csayAt:w&&w.say?w.sayAt:null};
       if(w){const st=catState(w);const wt=w.mode==='demand'&&w.phase===1?w.want:null;Object.assign(patch,{cp:st.pose,ct:st.tail,cm:!!st.moving,cr:!!st.run,cj:r2(st.jump||0),cq:!!st.squint,ch:r2(st.hy||0),cw:wt,cwt:wt?(w.focus==='me'?(S.myPeer||null):w.focus):null,cmd:w.mode,cfo:w.focus==='me'?(S.myPeer||null):w.focus,pk:w.picnic?{x:r2(w.picnic.x),z:r2(w.picnic.z),f:r2(w.picnic.f),o:w.picnic.o==='me'?(S.myPeer||null):w.picnic.o}:null})}else Object.assign(patch,{cp:null,ct:null,cm:null,cr:null,cj:null,cq:null,ch:null,cw:null,cwt:null,cmd:null,cfo:null,pk:null});
-      patch.sit=S.sitting?1:null;patch.bye=S.byeFade&&S.zone==='park'?S.byeFade:null;patch.pat=S.zone==='park'&&S.petUntil>Date.now()?1:null;patch.roll=S.zone==='star'&&S.roll?r2(S.roll.r):null;patch.lie=S.zone==='park'&&S.napping?1:null;
+      patch.sit=S.sitting?1:null;patch.wv=S.waveUntil>Date.now()?S.waveUntil:null;patch.hg=S.hugUntil>Date.now()?S.hugUntil:null;patch.bye=S.byeFade&&S.zone==='park'?S.byeFade:null;patch.pat=S.zone==='park'&&S.petUntil>Date.now()?1:null;patch.roll=S.zone==='star'&&S.roll?r2(S.roll.r):null;patch.lie=S.zone==='park'&&S.napping?1:null;
       const js=JSON.stringify(patch);if(js!==sentJson){sentJson=js;lastSent=now;S.room.presence(patch).catch(()=>{})}}
     // people
     const list=presentPeople();const seen=new Set();
@@ -1035,8 +1035,9 @@ for(const c of parkCats.values()){ambBrain(c,now,dt);c.g.position.set(c.x,0,c.z)
       if(o.g.userData.arms){const me=p.peer==='me',hc=S.zone==='park'?hostCat():null;
         const hugging=!!(hc&&hc.mode==='held'&&(me?isMePeer(hc.focus):hc.focus===p.peer));
         const px=me?S.pos.x:o.x,pz=me?S.pos.z:o.z,catNear=!!(hc&&Number.isFinite(hc.x)&&Math.hypot(hc.x-px,hc.z-pz)<1.9),petting=S.zone==='park'&&!hugging&&catNear&&((me?S.petUntil>Date.now():!!p.pat)||(hc.mode==='purr'&&(me?isMePeer(hc.focus):hc.focus===p.peer))),k=Math.min(1,dt*10),pat=reduce?0:Math.sin(tt*9)*.18;
-        o.g.userData.arms.forEach(a=>{const sd=a.userData.sd,show=hugging||(petting&&sd>0);a.visible=show;if(!show){a.rotation.set(0,0,sd*.12);return}
-          const rx=hugging?-1.35:-.95+pat,rz=hugging?-sd*.55:.05;a.rotation.x+=(rx-a.rotation.x)*k;a.rotation.z+=(rz-a.rotation.z)*k})}
+        const nowT=Date.now(),waving=(me?S.waveUntil:p.wv)>nowT,hugP=(me?S.hugUntil:p.hg)>nowT,both=hugging||hugP;
+        o.g.userData.arms.forEach(a=>{const sd=a.userData.sd,wave1=waving&&!both&&sd>0,show=both||wave1||(petting&&sd>0);a.visible=show;if(!show){a.rotation.set(0,0,sd*.12);return}
+          const rx=both?-1.35:wave1?-2.85:-.95+pat,rz=both?-sd*.55:wave1?.35+(reduce?0:Math.sin(tt*11)*.4):.05;a.rotation.x+=(rx-a.rotation.x)*k;a.rotation.z+=(rz-a.rotation.z)*k})}
       if(o.g.userData.bouquet)o.g.userData.bouquet.visible=(p.peer==='me'?S.holdUntil:p.holdUntil)>Date.now();
       if(o.g.userData.churu){const me=p.peer==='me';o.g.userData.churu.visible=me?!!S.churu:!!p.churu;const wv=me?S.wandUntil>Date.now():!!p.wand;o.g.userData.wand.visible=wv;if(wv&&!reduce)o.g.userData.wand.rotation.z=-.2+Math.sin(tt*8)*.5}{const lie=S.zone==='park'&&(p.peer==='me'?S.napping:p.lie),sit=S.zone==='park'?(p.peer==='me'?(S.sitting?1:0):p.sit):0;o.sitY=(o.sitY||0)+((lie?.24:sit?-.34:0)-(o.sitY||0))*Math.min(1,dt*6);b.position.y=(walking&&!reduce?Math.abs(Math.sin(tt*10))*.06:0)+o.sitY}
       o.nm.textContent=nameOf(p);o.nm.classList.toggle('me',p.peer==='me');place(o.nm,o.x,1.75+oy,o.z);
@@ -1118,7 +1119,7 @@ for(const c of parkCats.values()){ambBrain(c,now,dt);c.g.position.set(c.x,0,c.z)
         rr(16,28,31,26,9)}
       else{x.fillStyle=col?'#f07c95':PAPER;x.beginPath();x.moveTo(32,52);x.bezierCurveTo(6,34,10,12,32,22);x.bezierCurveTo(54,12,58,34,32,52);x.fill();x.stroke()}})})}
   const flying=[],pats=[];
-  function flyGift(fromKey,toKey,k){const a=people.get(fromKey),b=people.get(toKey);if(!a||!b)return;const sc=scenes[S.zone];
+  function flyGift(fromKey,toKey,k){if(k==='wave'||k==='hug')return;const a=people.get(fromKey),b=people.get(toKey);if(!a||!b)return;const sc=scenes[S.zone];
     if(k==='comfort'){const sp=new THREE.Sprite(giftMat('hand').clone());sp.scale.set(.55,.55,1);sc.add(sp);const dx=a.x-b.x,dz=a.z-b.z,d=Math.hypot(dx,dz)||1;pats.push({sp,sc,b,ox:dx/d*.3,oz:dz/d*.3,t0:performance.now()});return}
     const sp=new THREE.Sprite(giftMat(k).clone());sp.scale.set(.5,.5,1);sc.add(sp);const d=Math.hypot(b.x-a.x,b.z-a.z);flying.push({sp,sc,a,b,t0:performance.now(),k,dur:Math.min(2600,900+d*45),h:Math.min(7,1.2+d*.18),spin:d>4})}
   function tickPats(now){for(let i=pats.length-1;i>=0;i--){const q=pats[i],t=(now-q.t0)/1000;if(t>2.2){q.sc.remove(q.sp);pats.splice(i,1);continue}
@@ -1431,7 +1432,7 @@ function presentPeople_(){
     list.push({peer:p.peer,by:p.by||(typeof pr.uid==='string'?pr.uid:null),at:typeof pr.at==='string'?pr.at:'plaza',
       x:Number.isFinite(fx)?Math.max(-90,Math.min(90,fx)):0,z:Number.isFinite(fz)?Math.max(-90,Math.min(90,fz)):9,f:Number(pr.f),
       say:str(pr.say,60),sayAt:Number(pr.sayAt)||0,guest:p.guest,nick:cleanNick(pr.nick),holdUntil:pr.hold==='flower'?Math.min(Number(pr.holdUntil)||0,Date.now()+20000):0,zone:pr.zone==='park'?'park':'star',
-      cat:typeof pr.cat==='string'?pr.cat:null,cx:Number(pr.cx)||0,cz:Number(pr.cz)||0,cf:Number(pr.cf),cm:pr.cm===true,cr:pr.cr===true,cp:str(pr.cp,10),ct:str(pr.ct,8),cj:Math.max(0,Math.min(1.5,Number(pr.cj)||0)),cq:pr.cq===true,ch:Math.max(-1.2,Math.min(1.2,Number(pr.ch)||0)),csc:Number(pr.csc),csay:str(pr.csay,24),cmd:str(pr.cmd,10),cfo:typeof pr.cfo==='string'?pr.cfo:null,pk:pr.pk&&typeof pr.pk==='object'&&Number.isFinite(Number(pr.pk.x))?{x:Number(pr.pk.x),z:Number(pr.pk.z),f:Number(pr.pk.f)||0,o:typeof pr.pk.o==='string'?pr.pk.o:null}:null,sit:pr.sit===1?1:0,bye:Number(pr.bye)||0,pat:pr.pat===1,roll:Math.max(0,Math.min(.9,Number(pr.roll)||0)),lie:pr.lie===1,csayAt:Number(pr.csayAt)||0,churu:pr.churu===true,wand:pr.wand===true,park:typeof pr.park==='string'?pr.park:null,ps:Number(pr.ps)||0,cw:['pet','churu','play'].includes(pr.cw)?pr.cw:null,cwt:typeof pr.cwt==='string'?pr.cwt:null})}
+      cat:typeof pr.cat==='string'?pr.cat:null,cx:Number(pr.cx)||0,cz:Number(pr.cz)||0,cf:Number(pr.cf),cm:pr.cm===true,cr:pr.cr===true,cp:str(pr.cp,10),ct:str(pr.ct,8),cj:Math.max(0,Math.min(1.5,Number(pr.cj)||0)),cq:pr.cq===true,ch:Math.max(-1.2,Math.min(1.2,Number(pr.ch)||0)),csc:Number(pr.csc),csay:str(pr.csay,24),cmd:str(pr.cmd,10),cfo:typeof pr.cfo==='string'?pr.cfo:null,pk:pr.pk&&typeof pr.pk==='object'&&Number.isFinite(Number(pr.pk.x))?{x:Number(pr.pk.x),z:Number(pr.pk.z),f:Number(pr.pk.f)||0,o:typeof pr.pk.o==='string'?pr.pk.o:null}:null,sit:pr.sit===1?1:0,wv:Number(pr.wv)||0,hg:Number(pr.hg)||0,bye:Number(pr.bye)||0,pat:pr.pat===1,roll:Math.max(0,Math.min(.9,Number(pr.roll)||0)),lie:pr.lie===1,csayAt:Number(pr.csayAt)||0,churu:pr.churu===true,wand:pr.wand===true,park:typeof pr.park==='string'?pr.park:null,ps:Number(pr.ps)||0,cw:['pet','churu','play'].includes(pr.cw)?pr.cw:null,cwt:typeof pr.cwt==='string'?pr.cwt:null})}
   return list;
 }
 function nameOf(person){if(person.peer==='me')return S.nick||'나';if(person.nick)return person.nick;return nickOf(person.by)||(person.guest?'손님':'방문자')}
@@ -1899,8 +1900,8 @@ function renderAlbum(){
   if(q('#lbDelYes'))q('#lbDelYes').onclick=()=>{const id=x.id;AL.confirm=false;editPet(p,mp=>{mp.photos=(mp.photos||[]).filter(t=>t.id!==id);if(mp.photo===id)mp.photo=null});
     S.assets&&S.assets.delete(id).catch(()=>{});toast('사진을 지웠어요');renderAlbum()};
 }
-const GIFT={wave:{label:'손 흔들기',say:'(손 흔들기)'},comfort:{label:'위로하기',say:'토닥토닥',log:'토닥토닥 위로했어요',got:'토닥토닥 위로해 줬어요'},churu:{label:'츄르 선물',say:'(츄르 건네기)',log:'츄르를 선물했어요',got:'츄르를 선물했어요'},flower:{label:'꽃 주기',say:'(꽃 건네기)',log:'꽃을 건넸어요',got:'꽃을 건넸어요'}};
-const GICON={wave:'<svg viewBox="0 0 28 28"><path d="M9 22c-3-3-3-8 0-11l5-5 2 2-3 4 6-5 2 2-6 6 7-4 1 2-7 5 6-2 1 2-8 4c-2 1-4 1-6 0z" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+const GIFT={wave:{label:'손 흔들기',say:'(손 흔들기)'},hug:{label:'안아주기',say:'(꼭 안아주기)',log:'꼭 안아 줬어요',got:'꼭 안아 줬어요'},comfort:{label:'위로하기',say:'토닥토닥',log:'토닥토닥 위로했어요',got:'토닥토닥 위로해 줬어요'},churu:{label:'츄르 선물',say:'(츄르 건네기)',log:'츄르를 선물했어요',got:'츄르를 선물했어요'},flower:{label:'꽃 주기',say:'(꽃 건네기)',log:'꽃을 건넸어요',got:'꽃을 건넸어요'}};
+const GICON={hug:'<svg viewBox="0 0 28 28"><circle cx="10" cy="7" r="3" fill="none" stroke="var(--ink)" stroke-width="1.5"/><circle cx="18" cy="7" r="3" fill="none" stroke="var(--ink)" stroke-width="1.5"/><path d="M4 24c0-7 3-11 6-11s5 2 4 5M24 24c0-7-3-11-6-11s-5 2-4 5M8 17q6 5 12 0" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/></svg>',wave:'<svg viewBox="0 0 28 28"><path d="M9 22c-3-3-3-8 0-11l5-5 2 2-3 4 6-5 2 2-6 6 7-4 1 2-7 5 6-2 1 2-8 4c-2 1-4 1-6 0z" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linejoin="round"/></svg>',
  comfort:'<svg viewBox="0 0 28 28"><path d="M8 25V15l-1-8a1.6 1.6 0 0 1 3 0l1 6V5a1.6 1.6 0 0 1 3 0v7V4a1.6 1.6 0 0 1 3 0v8V6a1.6 1.6 0 0 1 3 0v10l2-3a1.6 1.6 0 0 1 2.6 1.6L20 21v4z" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/></svg>',
  churu:'<svg viewBox="0 0 28 28"><rect x="11" y="3" width="6" height="20" rx="2" fill="none" stroke="var(--ink)" stroke-width="1.5" transform="rotate(25 14 13)"/><path d="M5 22l4 3M8 19l3 2" stroke="var(--ink)" stroke-width="1.2"/></svg>',
  flower:'<svg viewBox="0 0 28 28"><path d="M14 26V14" stroke="var(--ink)" stroke-width="1.5"/><g fill="none" stroke="var(--ink)" stroke-width="1.4"><circle cx="14" cy="7" r="3.4"/><circle cx="9" cy="11" r="3.4"/><circle cx="19" cy="11" r="3.4"/></g><path d="M14 19q-5-1-6-5M14 21q5-1 6-5" fill="none" stroke="var(--ink)" stroke-width="1.2"/></svg>'};
@@ -1915,9 +1916,9 @@ function renderPerson(pn){
    <div class="row" style="justify-content:space-between"><span class="eyebrow">방문자</span><button class="chip" id="pBack">돌아가기</button></div>
    <h2>${esc(q?nameOf(q):'방문자')}</h2>
    <p class="muted" id="personWhere">${q?esc(whereOf(q)):'고양이별을 떠났어요'}</p>
-   <div class="acts">${Object.keys(GIFT).map(k=>`<button class="act" data-g="${k}" ${q&&S.entered&&live?'':'disabled'}>${GICON[k]}<span>${GIFT[k].label}</span></button>`).join('')}</div>
+   <div class="acts mini">${Object.keys(GIFT).map(k=>`<button class="act" data-g="${k}" ${q&&S.entered&&live?'':'disabled'}>${GICON[k]}<span>${GIFT[k].label}</span></button>`).join('')}</div>
    <button class="btn" id="pGo" ${q&&S.entered?'':'disabled'}>곁으로 걸어가기</button>
-   <p class="note">${!S.entered?'무지개다리를 건너면 마음을 전할 수 있어요.':!live?'지금은 다른 방문자와 연결되지 않아 전할 수 없어요.':q&&q.zone!==S.zone?'다른 곳에 있어요. 같은 곳에 있어야 마음을 전할 수 있어요.':'멀리 있어도 바로 전해져요. 츄르와 꽃은 던져서, 위로는 멀리서 토닥여요. 받은 츄르와 꽃은 그 사람의 이름 패널에 남아요.'}</p>   ${q&&q.by&&q.by!==S.myId?reportForm('person',q.by,nameOf(q)):''}
+   ${q&&q.by&&q.by!==S.myId?reportForm('person',q.by,nameOf(q)):''}
    ${S.isOwner&&q&&q.by&&q.by!==S.myId?`<div class="note"><b>차단</b> · 고양이별 주인에게만 보여요<div class="row" style="gap:4px;margin-top:6px"><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="7">7일</button><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="30">30일</button><button class="chip" data-blk="${esc(q.by)}" data-nm="${esc(nameOf(q))}" data-d="0">계속 차단</button></div></div>`:''}`;
   pn.querySelector('#pBack').onclick=()=>{S.view='pet';renderPanel()};
   wireReports(pn);pn.querySelectorAll('[data-blk]').forEach(b=>b.onclick=()=>blockPerson(b.dataset.blk,b.dataset.nm,Number(b.dataset.d)));
@@ -1928,6 +1929,7 @@ function approachPerson(peer,kind){
   const q=presentPeople().find(x=>x.peer===peer);if(!q){toast('그 방문자는 고양이별을 떠났어요');return}
   if(q.zone!==S.zone){toast(`${nameOf(q)}님은 ${whereOf(q)}에 있어요`);return}
   const d=Math.hypot(q.x-S.pos.x,q.z-S.pos.z);
+  if(kind==='hug'&&d>1.15){const ux=(S.pos.x-q.x)/d,uz=(S.pos.z-q.z)/d;S.queue=[];S.target={x:q.x+ux*.8,z:q.z+uz*.8};W3.ok&&W3.clearTrail();S.afterArrive=()=>sendGift(peer,'hug');toast(`${nameOf(q)}님에게 다가가는 중이에요`);return}
   if(kind){sendGift(peer,kind,d>2.4);return}
   if(d>2.4){const ux=(S.pos.x-q.x)/d,uz=(S.pos.z-q.z)/d;S.queue=[];S.target={x:q.x+ux*1.3,z:q.z+uz*1.3};W3.ok&&W3.clearTrail();S.afterArrive=kind?()=>sendGift(peer,kind):null;if(kind)toast(`${nameOf(q)}님에게 다가가는 중이에요`);return}
   if(kind)sendGift(peer,kind);
@@ -1935,6 +1937,7 @@ function approachPerson(peer,kind){
 function sendGift(peer,kind,thrown){
   const q=presentPeople().find(x=>x.peer===peer);if(!q||!S.room){toast('지금은 마음을 전할 수 없어요');return}
   S.face=Math.atan2(q.x-S.pos.x,q.z-S.pos.z);
+  if(kind==='wave')S.waveUntil=Date.now()+2400;if(kind==='hug')S.hugUntil=Date.now()+2800;
   S.room.emit('gift',{to:peer,k:kind,n:S.nick||''}).catch(e=>toast(e&&e.code==='not_permitted'?'이 고양이별에서는 선물을 보낼 수 없어요':'마음을 전하지 못했어요. 다시 해 주세요'));
   S.say=thrown?({flower:'(꽃 던지기!)',churu:'(츄르 던지기!)',comfort:'(멀리서 토닥토닥)',wave:'(손 흔들기)'}[kind]):GIFT[kind].say;S.sayAt=Date.now();S.room.presence({say:S.say,sayAt:S.sayAt}).catch(()=>{});
   if(false){const mine=Array.isArray(S.chatMine)?S.chatMine.slice():[];mine.push({t:GIFT[kind].log,at:Date.now(),z:S.zone,k:kind,to:q.by||null,tn:nameOf(q)});S.chatMine=mine.slice(-40);S.chatDirty=(S.chatDirty||0)+1;S.chat[S.myId]={m:S.chatMine};renderChat();
@@ -1948,10 +1951,11 @@ function handleGift(msg){
   if(W3.ok)W3.flyGift(fromKey,toKey,k);
   {const L=presentPeople();const nm=key=>key==='me'?(S.nick||'나'):(()=>{const p=L.find(q=>q.peer===key);return p?nameOf(p):'방문자'})();
    const fromN=key=>key==='me'?(S.nick||'나'):(cleanNick(d.n)||nm(key));
-   const verb={wave:'손을 흔들었어요',comfort:'토닥토닥 위로했어요',churu:'츄르를 선물했어요',flower:'꽃을 건넸어요'}[k];
+   const verb={hug:'꼭 안아 줬어요',wave:'손을 흔들었어요',comfort:'토닥토닥 위로했어요',churu:'츄르를 선물했어요',flower:'꽃을 건넸어요'}[k];
    const seen=L.some(q=>q.peer===toKey)||toKey==='me';if(seen||fromKey==='me')feed(`<b>${esc(fromN(fromKey))}</b> → <b>${esc(nm(toKey))}</b> ${verb}`)}
   if(toKey!=='me'||msg.sameTab)return;
   const from=cleanNick(d.n)||nickOf(msg.by)||'방문자';
+  if(k==='hug'){const L=presentPeople(),f=L.find(q=>q.peer===fromKey);if(f&&Math.hypot(f.x-S.pos.x,f.z-S.pos.z)<1.9){S.face=Math.atan2(f.x-S.pos.x,f.z-S.pos.z);S.hugUntil=Date.now()+2800;toast(`${from}님이 꼭 안아 줬어요`)}return}
   if(k==='wave')return;
   if(k==='flower')S.holdUntil=Date.now()+15000;
   if(k==='churu')S.giftChuru=(S.giftChuru||0)+1;
@@ -2271,7 +2275,7 @@ function renderQuick(){
   }
   const tg=quickTarget();
   const qn=quickPeople().length;
-  if(tg)h+=`<div class="qt">${esc(nameOf(tg))}님에게${qn>1?' <button data-q="next" style="padding:0 6px;font-size:.66rem">다른 사람</button>':''}</div><div class="qrow">${['wave','comfort','churu','flower'].map(k=>qb('g:'+k,GICON[k],GIFT[k].label,{off:!S.room})).join('')}</div>`;
+  if(tg)h+=`<div class="qt">${esc(nameOf(tg))}님에게${qn>1?' <button data-q="next" style="padding:0 6px;font-size:.66rem">다른 사람</button>':''}</div><div class="qrow">${['wave','hug','comfort','churu','flower'].map(k=>qb('g:'+k,GICON[k],GIFT[k].label,{off:!S.room})).join('')}</div>`;
   if(!h)h='<div class="qt">화단이나 사람 곁에 가면 여기서 바로 할 수 있어요</div>';
   if(h!==quickSig){quickSig=h;el.innerHTML=h;el.hidden=false}
 }
